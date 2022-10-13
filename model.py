@@ -2,13 +2,24 @@ import torch
 from torch.nn import functional as F
 from torch import nn
 import torchmetrics
-from pytorch_lightning.core.lightning import LightningModule
 import pytorch_lightning as pl
+import timm
+from timm.data import resolve_data_config
+from timm.data.transforms_factory import create_transform
 
-from torch.utils.data import Dataset, DataLoader, random_split
 
-import numpy as np
-import matplotlib.pyplot as plt
+class Extractor(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        # 预训练的图片特征提取器
+        self.model = timm.create_model('vit_base_patch16_224', pretrained=True)
+        self.model.head = torch.nn.Identity()
+
+        self.transform = create_transform(**resolve_data_config({}, model=self.model))
+
+    def forward(self, x):
+        return self.model(x)  # [batch_size, 768]
 
 
 class MyModel(pl.core.lightning.LightningModule):
@@ -16,7 +27,7 @@ class MyModel(pl.core.lightning.LightningModule):
         super().__init__()
 
         self.lr_rate = lr_rate
-        self.fc = nn.Linear(1000, 6)  # [1, 1000] -> [1, 6]
+        self.fc = nn.Linear(768, 6)  # [batch_size, 768] -> [batch_size, 6]
         self.criterion = nn.CrossEntropyLoss()
 
         self.train_acc = torchmetrics.Accuracy()
@@ -24,16 +35,14 @@ class MyModel(pl.core.lightning.LightningModule):
         self.test_acc = torchmetrics.Accuracy()
 
     def forward(self, x):
-        x = self.fc(x)  # [batch_size, 1000] -> [batch_size, 6]
-        # x = torch.softmax(x, dim=1) # [batch_size, 6] -> [batch_size, 6]
-        return x
+        return self.fc(x)  # [batch_size, 768] -> [batch_size, 6]
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr_rate)
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        # 图片特征 x: [batch_size, 1000]
+        # 图片特征 x: [batch_size, 768]
         # 分类索引 y: [batch_size]
 
         logits = self.forward(x)

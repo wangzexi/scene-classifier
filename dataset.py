@@ -4,40 +4,25 @@ from PIL import Image
 from tqdm import tqdm
 import torch
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader, Dataset, Subset, ConcatDataset, random_split
-import timm
-from timm.data import resolve_data_config
-from timm.data.transforms_factory import create_transform
+from torch.utils.data import DataLoader, Dataset, random_split
 
-# 预训练的图片模型
-model = timm.create_model('vit_base_patch16_224', pretrained=True).eval()
-
-# 加速训练的图片特征缓存
-# 所有图片先过一遍预训练的网络，即：[1, 3, 224, 224] -> [1, 1000]
-# 生成图片特征缓存哈希表 img_cache，图片文件名 => [1, 1000]
-cache_file = 'img_cache.pkl'
-
-
-def read_cache():
-    try:
-        with open(cache_file, "rb") as f:   # Unpickling
-            return pickle.load(f)
-    except:
-        return {}
-
-
-def save_cache():
-    with open(cache_file, "wb") as f:  # Pickling
-        pickle.dump(img_cache, f)
-
-
-img_cache = read_cache()
 
 class MyDataset(Dataset):
     def listdir(dir):
         return sorted([os.path.join(dir, f) for f in os.listdir(dir) if not f.startswith('_')])
 
-    def __init__(self, dataset_dir, model):
+    def load_cache(self):
+        try:
+            with open('img_cache.pkl', "rb") as f:
+                self.img_cache = pickle.load(f)
+        except:
+            self.img_cache = {}
+
+    def save_cache(self):
+        with open('img_cache.pkl', "wb") as f:
+            pickle.dump(self.img_cache, f)
+
+    def __init__(self, dataset_dir, extractor):
         # dataset_dir = './Dataset-06'
         # self.imgs
         # [图片路径, 图片类别]
@@ -46,9 +31,21 @@ class MyDataset(Dataset):
         for cls, cls_dir in enumerate(MyDataset.listdir(dataset_dir)):
             self.imgs += [[img, cls] for img in MyDataset.listdir(cls_dir)]
 
-        # model: timm.create_model('vit_base_patch16_224', pretrained=True)
-        self.model = model
-        self.transform = create_transform(**resolve_data_config({}, model=self.model))
+        # extractor: 预训练的图片特征提取器
+        self.extractor = extractor
+
+        # 更新数据集所有图片的特征缓存
+        # 所有图片先过一遍预训练的网络，即：[1, 3, 224, 224] -> [1, 768]
+        # 生成图片特征缓存哈希表 img_cache，图片文件名 => [1, 768]
+        self.load_cache()
+        with torch.no_grad():
+            for img_path, cls in tqdm(self.imgs):
+                if img_path in self.img_cache:
+                    continue
+                img = Image.open(img_path).convert('RGB')
+                tensor = self.extractor.transform(img).unsqueeze(0)  # transform and add batch dimension
+                self.img_cache[img_path] = self.extractor(tensor).detach().cpu().numpy().reshape(-1)
+        self.save_cache()
 
     def __len__(self):
         return len(self.imgs)
@@ -58,34 +55,21 @@ class MyDataset(Dataset):
             raise IndexError
 
         img_path, cls = self.imgs[idx]
+        feature = self.img_cache[img_path]
 
-        if img_path not in img_cache:
-            # transform
-            img = Image.open(img_path).convert('RGB')
-            tensor = self.transform(img).unsqueeze(0)  # transform and add batch dimension
-            with torch.no_grad():
-                img_cache[img_path] = self.model(tensor).detach().cpu().numpy().reshape(-1)
-            save_cache()
-
-        feature = img_cache[img_path]
-
-        return (
-            feature,
-            cls
-        )
+        return (feature, cls)
 
 
 class MyDataModule(pl.LightningDataModule):
-    def __init__(self, model=model, batch_size=128):
+    def __init__(self, extractor, batch_size=128):
         super().__init__()
-        self.model = model
+        self.extractor = extractor
         self.batch_size = batch_size
 
     def prepare_data(self):
-        # model
         dataset = MyDataset(
             dataset_dir='./Dataset-06',
-            model=self.model
+            extractor=self.extractor
         )
 
         # 训练集:验证集:测试集 = 6:2:2
@@ -116,20 +100,3 @@ class MyDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False
         )
-
-
-if __name__ == '__main__':
-    # model = timm.create_model('vit_base_patch16_224', pretrained=True).eval()
-
-    # d = MyDataset(
-    #     dataset_dir='./Dataset-06',
-    #     model=model
-    # )
-
-    # feat, cls = d[0]
-
-    # # print(im)
-    # # print(im.shape)
-
-    # dl = MyDataLoader(data_config=resolve_data_config({}, model=model))
-    pass
