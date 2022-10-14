@@ -66,7 +66,9 @@ python test.py
 
 ### HTTP 服务
 
-使用以下命令启动HTTP服务器，默认监听在`localhost:3000`，使用HTTP POST上传任意图片即可获得分类结果，正确返回`0~5`，错误返回`-1`。
+使用以下命令启动HTTP服务器，默认监听在`http://localhost:3000`，使用HTTP POST上传任意图片即可获得分类结果，正确返回`0`~`5`，错误返回`-1`。
+
+服务端使用CPU计算约1秒，GPU约0.1秒。
 
 ```Powershell
 # 启动服务
