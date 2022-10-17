@@ -22,7 +22,7 @@ class Extractor(nn.Module):
         return self.model(x)  # [batch_size, 768]
 
 
-class MyModel(pl.core.lightning.LightningModule):
+class MyModel(pl.LightningModule):
     def __init__(self, lr_rate=0.01):
         super().__init__()
 
