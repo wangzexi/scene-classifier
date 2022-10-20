@@ -32,7 +32,8 @@ class MyDataset(Dataset):
             self.imgs += [[img, cls] for img in MyDataset.listdir(cls_dir)]
 
         # extractor: 预训练的图片特征提取器
-        self.extractor = extractor
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.extractor = extractor.to(device)
 
         # 更新数据集所有图片的特征缓存
         # 所有图片先过一遍预训练的网络，即：[1, 3, 224, 224] -> [1, 768]
@@ -43,7 +44,7 @@ class MyDataset(Dataset):
                 if img_path in self.img_cache:
                     continue
                 img = Image.open(img_path).convert('RGB')
-                tensor = self.extractor.transform(img).unsqueeze(0)  # transform and add batch dimension
+                tensor = self.extractor.transform(img).unsqueeze(0).to(device)  # transform and add batch dimension
                 self.img_cache[img_path] = self.extractor(tensor).detach().cpu().reshape(-1)
         self.save_cache()
 
