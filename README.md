@@ -37,7 +37,18 @@ pip install tensorboard
 
 ### 数据集
 
-数据集位于`Dataset-06`文件夹中，各类图片放置在不同文件夹内，通过`dataset.py`载入。
+数据集位于`dataset/Dataset-06`文件夹中，各类图片放置在不同文件夹内，通过`dataset.py`载入。
+
+```
++---dataset
+    +---Dataset-06
+        +---01_buildings
+        +---02_forests
+        +---03_glacier
+        +---04_mountains
+        +---05_sea
+        \---06_street
+```
 
 首次加载数据集时会通过[预训练的VIT网络](https://rwightman.github.io/pytorch-image-models/models/vision-transformer/)计算出的图片特征缓存到`img_cache.pkl`中，用于后续加速训练。
 

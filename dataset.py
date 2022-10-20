@@ -69,7 +69,7 @@ class MyDataModule(pl.LightningDataModule):
 
     def prepare_data(self):
         dataset = MyDataset(
-            dataset_dir='./Dataset-06',
+            dataset_dir='./dataset/Dataset-06',
             extractor=self.extractor
         )
 
