@@ -44,7 +44,7 @@ class MyDataset(Dataset):
                     continue
                 img = Image.open(img_path).convert('RGB')
                 tensor = self.extractor.transform(img).unsqueeze(0)  # transform and add batch dimension
-                self.img_cache[img_path] = self.extractor(tensor).detach().cpu().numpy().reshape(-1)
+                self.img_cache[img_path] = self.extractor(tensor).detach().cpu().reshape(-1)
         self.save_cache()
 
     def __len__(self):
