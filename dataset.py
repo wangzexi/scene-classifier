@@ -1,76 +1,50 @@
 import os
-import pickle
 from PIL import Image
-from tqdm import tqdm
-import torch
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, Dataset, random_split
-
+import functools
 
 class MyDataset(Dataset):
     def listdir(dir):
         return sorted([os.path.join(dir, f) for f in os.listdir(dir) if not f.startswith('_')])
 
-    def load_cache(self):
-        try:
-            with open('img_cache.pkl', "rb") as f:
-                self.img_cache = pickle.load(f)
-        except:
-            self.img_cache = {}
+    def __init__(self, dataset_dir, transform):
+        self.transform = transform
 
-    def save_cache(self):
-        with open('img_cache.pkl', "wb") as f:
-            pickle.dump(self.img_cache, f)
-
-    def __init__(self, dataset_dir, extractor):
+        # 从数据集目录读入图片文件列表，每个子目录内的图片赋予同一个整数作为类别标签
         # dataset_dir = './Dataset-06'
-        # self.imgs
-        # [图片路径, 图片类别]
-        # 如：['./Dataset-06\\06_street\\9934.jpg', 5]
+        # self.imgs: [(图片路径, 图片类别), ...]
+        # 如：[('./Dataset-06\\06_street\\9934.jpg', 5), ...]
         self.imgs = []
         for cls, cls_dir in enumerate(MyDataset.listdir(dataset_dir)):
-            self.imgs += [[img, cls] for img in MyDataset.listdir(cls_dir)]
-
-        # extractor: 预训练的图片特征提取器
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.extractor = extractor.to(device)
-
-        # 更新数据集所有图片的特征缓存
-        # 所有图片先过一遍预训练的网络，即：[1, 3, 224, 224] -> [1, 768]
-        # 生成图片特征缓存哈希表 img_cache，图片文件名 => [1, 768]
-        self.load_cache()
-        with torch.no_grad():
-            for img_path, cls in tqdm(self.imgs):
-                if img_path in self.img_cache:
-                    continue
-                img = Image.open(img_path).convert('RGB')
-                tensor = self.extractor.transform(img).unsqueeze(0).to(device)  # transform and add batch dimension
-                self.img_cache[img_path] = self.extractor(tensor).detach().cpu().reshape(-1)
-        self.save_cache()
-
+            self.imgs += [(img, cls) for img in MyDataset.listdir(cls_dir)]
+        
     def __len__(self):
         return len(self.imgs)
 
+    # 缓存transform后的图片结果，减少硬盘读取提高速度，但可能增加内存占用量
+    @functools.cache
     def __getitem__(self, idx):
         if idx < 0 or idx >= self.__len__():
             raise IndexError
 
         img_path, cls = self.imgs[idx]
-        feature = self.img_cache[img_path]
+        tensor = self.transform(Image.open(img_path).convert('RGB'))
 
-        return (feature, cls)
+        return (tensor, cls)
 
 
 class MyDataModule(pl.LightningDataModule):
-    def __init__(self, extractor, batch_size=128):
+    def __init__(self, transform, dataset_dir='./dataset/Dataset-06', batch_size=16):
         super().__init__()
-        self.extractor = extractor
+        self.transform = transform
+        self.dataset_dir = dataset_dir
         self.batch_size = batch_size
 
     def prepare_data(self):
         dataset = MyDataset(
-            dataset_dir='./dataset/Dataset-06',
-            extractor=self.extractor
+            dataset_dir=self.dataset_dir,
+            transform=self.transform
         )
 
         # 训练集:验证集:测试集 = 6:2:2

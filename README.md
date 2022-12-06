@@ -50,8 +50,6 @@ pip install tensorboard
         \---06_street
 ```
 
-首次加载数据集时会通过[预训练的VIT网络](https://rwightman.github.io/pytorch-image-models/models/vision-transformer/)计算出的图片特征缓存到`img_cache.pkl`中，用于后续加速训练。
-
 数据集被随机6:2:2分割为训练集、验证集和测试集。
 
 ### 训练

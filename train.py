@@ -1,13 +1,13 @@
 import pytorch_lightning as pl
-from model import Extractor, MyModel
+from model import MyModel
 from dataset import MyDataModule
 
 trainer = pl.Trainer(
     gpus=1,
     logger=pl.loggers.TensorBoardLogger(save_dir='tb_logs', name='MyModel'),
-    max_epochs=1000,
-    # log_every_n_steps=50,
-    # val_check_interval=6,
+    max_epochs=10,
+    log_every_n_steps=10,
+    val_check_interval=10,
     # limit_val_batches=0.5
 
     callbacks=[pl.callbacks.ModelCheckpoint(
@@ -18,9 +18,8 @@ trainer = pl.Trainer(
     )]
 )
 
-extractor = Extractor()
-model = MyModel(lr_rate=0.000001)
-datamodule = MyDataModule(extractor=extractor, batch_size=128)
+model = MyModel(lr_rate=0.0001)
+datamodule = MyDataModule(transform=model.transform, dataset_dir='./dataset/Dataset-12', batch_size=16)
 
 trainer.fit(
     model=model,

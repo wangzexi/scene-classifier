@@ -3,14 +3,13 @@ import http.server
 import socketserver
 from PIL import Image
 import torch
-from model import Extractor, MyModel
+from model import MyModel
 import time
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-extractor = Extractor().to(device)
 # 载入模型权重
-model = MyModel.load_from_checkpoint('pretrained/loss=0.16-epoch=999-step=80000.ckpt').to(device)
+model = MyModel.load_from_checkpoint('pretrained/loss=0.32-epoch=9-step=500.ckpt').to(device)
 
 
 class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -27,8 +26,8 @@ class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             img = Image.open(io.BytesIO(body)).convert('RGB')
             with torch.no_grad():
                 t = time.time()
-                feature = extractor(extractor.transform(img).to(device).unsqueeze(0)).reshape(-1)
-                out = torch.argmax(model(feature))
+                tensor = model.transform(img).to(device).unsqueeze(0)
+                out = torch.argmax(model(tensor))
 
             res = str(out.item())
             print(f'🌈 {res} ({time.time() - t:.6f}s on {device})')
